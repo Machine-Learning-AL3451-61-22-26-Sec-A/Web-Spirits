@@ -1,53 +1,61 @@
-import numpy as np
 import streamlit as st
+import pandas as pd
+import numpy as np
+from sklearn.cluster import KMeans
+from sklearn.mixture import GaussianMixture
 import matplotlib.pyplot as plt
 
-def gaussian_kernel(distance, bandwidth):
-    return np.exp(-0.5 * (distance / bandwidth)**2)
+# Function to load data from CSV
+def load_data(file_path):
+    return pd.read_csv(file_path)
 
-def lowess(x, y, bandwidth=0.1, iterations=3):
-    n = len(x)
-    y_smoothed = np.zeros(n)
-    
-    for i in range(n):
-        weights = gaussian_kernel(np.abs(x - x[i]), bandwidth)
-        weights *= np.sqrt(weights)  # "bisquare" weighting
-        weights /= np.sum(weights)
-        for _ in range(iterations):
-            numerator = np.sum(weights * y)
-            denominator = np.sum(weights)
-            y_smoothed[i] = numerator / denominator
-    
-    return y_smoothed
+# Function to apply K-means clustering
+def kmeans_clustering(data, num_clusters):
+    kmeans = KMeans(n_clusters=num_clusters)
+    kmeans.fit(data)
+    return kmeans.labels_
+
+# Function to apply EM clustering
+def em_clustering(data, num_clusters):
+    em = GaussianMixture(n_components=num_clusters)
+    em.fit(data)
+    return em.predict(data)
+
+# Function to visualize clusters
+def visualize_clusters(data, labels, algorithm):
+    plt.figure(figsize=(8, 6))
+    plt.scatter(data[:, 0], data[:, 1], c=labels, cmap='viridis')
+    plt.title(f'Clustered Data ({algorithm})')
+    plt.xlabel('Feature 1')
+    plt.ylabel('Feature 2')
+    plt.colorbar(label='Cluster')
+    st.pyplot()
 
 def main():
-    st.title('Locally Weighted Regression (LOWESS)')
-    
+    st.title('Clustering Comparison: K-means vs EM')
+
     st.sidebar.header('Settings')
-    bandwidth = st.sidebar.slider('Bandwidth', min_value=0.01, max_value=1.0, value=0.1, step=0.01)
-    iterations = st.sidebar.slider('Iterations', min_value=1, max_value=10, value=3, step=1)
-    
-    st.write('Please provide your data points:')
-    data = st.text_area('Input data (x,y)', '1,2\n2,3\n3,4\n4,5\n5,6')
-    
-    try:
-        data_points = np.array([[float(point.split(',')[0]), float(point.split(',')[1])] for point in data.split('\n')])
-        
-        x = data_points[:, 0]
-        y = data_points[:, 1]
-        
-        y_smoothed = lowess(x, y, bandwidth=bandwidth, iterations=iterations)
-        
-        fig, ax = plt.subplots()
-        ax.scatter(x, y, label='Data Points')
-        ax.plot(x, y_smoothed, color='red', label='Smoothed Curve')
-        ax.set_xlabel('X')
-        ax.set_ylabel('Y')
-        ax.legend()
-        
-        st.pyplot(fig)
-    except:
-        st.error('Please provide valid data points in the format "x,y" separated by newlines.')
+    file_path = st.sidebar.file_uploader('Upload CSV File', type=['csv'])
+    if file_path is not None:
+        data = load_data(file_path)
+        st.write('Sample data:')
+        st.write(data.head())
+
+        num_clusters = st.sidebar.slider('Number of Clusters', min_value=2, max_value=10, value=3, step=1)
+        run_clustering = st.sidebar.button('Run Clustering')
+
+        if run_clustering:
+            data_array = data.values
+            kmeans_labels = kmeans_clustering(data_array, num_clusters)
+            em_labels = em_clustering(data_array, num_clusters)
+
+            st.write('K-means Labels:')
+            st.write(kmeans_labels)
+            st.write('EM Labels:')
+            st.write(em_labels)
+
+            visualize_clusters(data_array, kmeans_labels, 'K-means')
+            visualize_clusters(data_array, em_labels, 'EM')
 
 if __name__ == '__main__':
     main()
