@@ -1,78 +1,59 @@
 import streamlit as st
 import pandas as pd
-from pgmpy.models import BayesianModel
-from pgmpy.estimators import MaximumLikelihoodEstimator
-from pgmpy.inference import VariableElimination
+import numpy as np
+from sklearn.datasets import load_iris
+from sklearn.mixture import GaussianMixture
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+import plotly.express as px
 
-def main():
-    st.title('Heart Disease Prediction')
+# Load the dataset
+@st.cache
+def load_data():
+    data = load_iris()
+    df = pd.DataFrame(data.data, columns=data.feature_names)
+    df['target'] = data.target
+    return df
 
-    # Load the dataset
-    try:
-        data = pd.read_csv(r"C:\Users\MOORTHY\Downloads\heartdisease.csv")
-        heart_disease = pd.DataFrame(data)
-    except FileNotFoundError:
-        st.error("Error: Dataset 'heartdisease.csv' not found. Make sure the file exists and is in the correct directory.")
-        return
-    except Exception as e:
-        st.error(f"An error occurred while loading the dataset: {e}")
-        return
+df = load_data()
 
-    # Define the Bayesian Network model
-    model = BayesianModel([
-        ('age', 'Lifestyle'),
-        ('Gender', 'Lifestyle'),
-        ('Family', 'heartdisease'),
-        ('diet', 'cholestrol'),
-        ('Lifestyle', 'diet'),
-        ('cholestrol', 'heartdisease'),
-        ('diet', 'cholestrol')
-    ])
+# Extract features for clustering
+X = df.drop(columns=['target'])
 
-    # Fit the model using Maximum Likelihood Estimator
-    model.fit(heart_disease, estimator=MaximumLikelihoodEstimator)
+# Apply Gaussian Mixture Model (EM algorithm)
+gmm = GaussianMixture(n_components=3, random_state=42)
+gmm_labels = gmm.fit_predict(X)
+df['GMM Cluster'] = gmm_labels
 
-    # Create a VariableElimination object for inference
-    HeartDisease_infer = VariableElimination(model)
+# Apply k-Means algorithm
+kmeans = KMeans(n_clusters=3, random_state=42)
+kmeans_labels = kmeans.fit_predict(X)
+df['kMeans Cluster'] = kmeans_labels
 
-    # Display user input fields
-    st.write('Enter the following values for prediction:')
-    age = st.number_input('Age', min_value=0, max_value=100, step=1)
-    gender = st.selectbox('Gender', ['Male', 'Female'])
-    family_history = st.selectbox('Family History', ['Yes', 'No'])
-    diet = st.selectbox('Diet', ['High', 'Medium'])
-    lifestyle = st.selectbox('Lifestyle', ['Athlete', 'Active', 'Moderate', 'Sedentary'])
-    cholesterol = st.selectbox('Cholesterol', ['High', 'Borderline', 'Normal'])
+# Calculate silhouette scores
+gmm_silhouette = silhouette_score(X, gmm_labels)
+kmeans_silhouette = silhouette_score(X, kmeans_labels)
 
-    # Convert user inputs to appropriate values for inference
-    gender = 0 if gender == 'Male' else 1
-    family_history = 1 if family_history == 'Yes' else 0
-    diet = 0 if diet == 'High' else 1
-    lifestyle_map = {'Athlete': 0, 'Active': 1, 'Moderate': 2, 'Sedentary': 3}
-    lifestyle = lifestyle_map[lifestyle]
-    cholesterol_map = {'High': 0, 'Borderline': 1, 'Normal': 2}
-    cholesterol = cholesterol_map[cholesterol]
+# Streamlit app
+st.title('Clustering with EM Algorithm and k-Means')
 
-    # Perform inference
-    try:
-        q = HeartDisease_infer.query(variables=['heartdisease'], evidence={
-            'age': age,
-            'Gender': gender,
-            'Family': family_history,
-            'diet': diet,
-            'Lifestyle': lifestyle,
-            'cholestrol': cholesterol
-        })
+st.write('## Dataset')
+st.write(df.head())
 
-        # Display prediction result
-        if q:
-            max_prob_state = q.values.argmax()  # Get the index of the state with the highest probability
-            st.write('Prediction:', max_prob_state)
-        else:
-            st.write('No prediction available.')
+st.write('## Silhouette Scores')
+st.write(f'GMM Silhouette Score: {gmm_silhouette:.4f}')
+st.write(f'k-Means Silhouette Score: {kmeans_silhouette:.4f}')
 
-    except Exception as e:
-        st.error(f"An error occurred during inference: {e}")
+st.write('## Clustering Results')
 
-if __name__ == '__main__':
-    main()
+# Plot the clustering results using Plotly
+fig1 = px.scatter_matrix(df, dimensions=df.columns[:-3], color='GMM Cluster', 
+                         title='GMM Clustering Results', symbol='target')
+fig2 = px.scatter_matrix(df, dimensions=df.columns[:-3], color='kMeans Cluster', 
+                         title='k-Means Clustering Results', symbol='target')
+
+st.plotly_chart(fig1)
+st.plotly_chart(fig2)
+
+st.write('## Note')
+st.write('In this example, we used the Iris dataset. For a real-world application, consider using more comprehensive and current data, and tuning the parameters of the clustering algorithms for better results.')
