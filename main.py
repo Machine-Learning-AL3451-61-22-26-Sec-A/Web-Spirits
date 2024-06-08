@@ -122,4 +122,4 @@ if uploaded_file is not None:
     ax.set_title('Comparison of Model Accuracies')
     st.pyplot(fig)
 else:
-    st.info("Please upload a CSV file to proceed.")
+    st.info("Please upload a CSV file to proceed.")
