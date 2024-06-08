@@ -1,64 +1,59 @@
-import streamlit as st
-import numpy as np
 import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.naive_bayes import CategoricalNB
+from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import accuracy_score
+import streamlit as st
 
-# Loading Data from a CSV File
-data = pd.DataFrame(data=pd.read_csv('trainingdata (1).csv'))
+# Function to load data
+@st.cache
+def load_data():
+    data = pd.read_csv('main.csv')
+    return data
 
-# Separating concept features from Target
-concepts = np.array(data.iloc[:,0:-1])
+# Function to preprocess data
+def preprocess_data(data):
+    le = LabelEncoder()
+    for column in data.columns:
+        data[column] = le.fit_transform(data[column])
+    return data
 
-# Isolating target into a separate DataFrame
-target = np.array(data.iloc[:,-1])
-
-def learn(concepts, target):
+# Function to train the model
+def train_model(data):
+    X = data.drop('PlayTennis', axis=1)
+    y = data['PlayTennis']
     
-    '''
-    learn() function implements the learning method of the Candidate elimination algorithm.
-    Arguments:
-        concepts - a data frame with all the features
-        target - a data frame with corresponding output values
-    '''
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+    
+    model = CategoricalNB()
+    model.fit(X_train, y_train)
+    
+    y_pred = model.predict(X_test)
+    accuracy = accuracy_score(y_test, y_pred)
+    
+    return model, accuracy, X_test, y_test, y_pred
 
-    # Initialise S0 with the first instance from concepts
-    specific_h = concepts[0].copy()
+# Load and preprocess data
+data = load_data()
+preprocessed_data = preprocess_data(data)
 
-    general_h = [["?" for i in range(len(specific_h))] for i in range(len(specific_h))]
+# Train model and get accuracy
+model, accuracy, X_test, y_test, y_pred = train_model(preprocessed_data)
 
-    # The learning iterations
-    for i, h in enumerate(concepts):
+# Streamlit app
+st.title('Naïve Bayesian Classifier')
 
-        # Checking if the hypothesis has a positive target
-        if target[i] == "Yes":
-            for x in range(len(specific_h)):
-                # Change values in S & G only if values change
-                if h[x] != specific_h[x]:
-                    specific_h[x] = '?'
-                    general_h[x][x] = '?'
+st.write('### Training Data')
+st.write(data)
 
-        # Checking if the hypothesis has a negative target
-        if target[i] == "No":
-            for x in range(len(specific_h)):
-                # For negative hypothesis, change values only in G
-                if h[x] != specific_h[x]:
-                    general_h[x][x] = specific_h[x]
-                else:
-                    general_h[x][x] = '?'
+st.write('### Preprocessed Data')
+st.write(preprocessed_data)
 
-    # find indices where we have empty rows, meaning those that are unchanged
-    indices = [i for i, val in enumerate(general_h) if val == ['?', '?', '?', '?', '?', '?']]
-    for i in indices:
-        # remove those rows from general_h
-        general_h.remove(['?', '?', '?', '?', '?', '?'])
-    # Return final values
-    return specific_h, general_h
+st.write('### Model Accuracy')
+st.write(f'Accuracy: {accuracy * 100:.2f}%')
 
-# Call the function to learn
-s_final, g_final = learn(concepts, target)
-
-# Print the results using st.write()
-st.write("Final Specific_h:")
-st.write(s_final)
-
-st.write("Final General_h:")
-st.write(g_final)
+st.write('### Test Set Predictions')
+test_results = X_test.copy()
+test_results['Actual'] = y_test
+test_results['Predicted'] = y_pred
+st.write(test_results)
