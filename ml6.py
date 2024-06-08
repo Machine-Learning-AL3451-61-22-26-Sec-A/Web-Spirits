@@ -1,52 +1,94 @@
-import streamlit as st
 import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.naive_bayes import MultinomialNB
-from sklearn.metrics import accuracy_score, confusion_matrix, precision_score, recall_score
+import numpy as np
+import matplotlib.pyplot as plt
+import streamlit as st
+from pgmpy.models import BayesianModel
+from pgmpy.estimators import MaximumLikelihoodEstimator
+from pgmpy.inference import VariableElimination
 
-def main():
-    st.title('Sentiment Analysis with Naive Bayes Classifier')
-    
-    # Provide the full path to the CSV file
-    file_path = r"C:\Users\MOORTHY\Downloads\document.csv"
-    
-    # Attempt to load the data
-    try:
-        msg = pd.read_csv(file_path, names=['message', 'label'])
-    except FileNotFoundError:
-        st.error(f"Error: File '{file_path}' not found.")
-        return
-    
-    st.write("Total Instances of Dataset:", msg.shape[0])
-    msg['labelnum'] = msg.label.map({'pos': 1, 'neg': 0})
+# Title and introduction
+st.title("Bayesian Network for COVID-19 Symptom Classification")
+st.write("This app uses a Bayesian Network to classify COVID-19 symptoms based on the provided dataset.")
 
-    # Split data into train and test sets
-    X = msg.message
-    y = msg.labelnum
-    Xtrain, Xtest, ytrain, ytest = train_test_split(X, y)  # Pass y as well
-    
-    # Vectorize the text data
-    count_v = CountVectorizer()
-    Xtrain_dm = count_v.fit_transform(Xtrain)
-    Xtest_dm = count_v.transform(Xtest)
+# Create a synthetic dataset
+def create_synthetic_data():
+    np.random.seed(42)
+    size = 1000
+    data = {
+        'Fever': np.random.randint(2, size=size),
+        'cough': np.random.randint(2, size=size),
+        'runnynose': np.random.randint(2, size=size),
+        'sorethroat': np.random.randint(2, size=size),
+        'pain': np.random.randint(2, size=size),
+        'diarrhoea': np.random.randint(2, size=size),
+        'diffbreath': np.random.randint(2, size=size),
+        'nose': np.random.randint(2, size=size),
+        'target': np.random.randint(2, size=size),
+        'tired': np.random.randint(2, size=size),
+    }
+    df = pd.DataFrame(data)
+    return df
 
-    # Train Naive Bayes classifier
-    clf = MultinomialNB()
-    clf.fit(Xtrain_dm, ytrain)
-    pred = clf.predict(Xtest_dm)
+# Generate the synthetic dataset
+df = create_synthetic_data()
 
-    # Display predictions and evaluation metrics
-    st.write('Sample Predictions:')
-    for doc, p in zip(Xtest, pred):
-        p = 'pos' if p == 1 else 'neg'
-        st.write(f"{doc} -> {p}")
+# Display the first five rows of the dataset
+st.subheader("First Five Rows of the Dataset")
+st.write(df.head())
 
-    st.write('\nAccuracy Metrics:')
-    st.write('Accuracy:', accuracy_score(ytest, pred))
-    st.write('Recall:', recall_score(ytest, pred))
-    st.write('Precision:', precision_score(ytest, pred))
-    st.write('Confusion Matrix:\n', confusion_matrix(ytest, pred))
+# Dataset description
+st.subheader("Dataset Description")
+st.write(df.describe())
 
-if __name__ == '__main__':
-    main()
+# Check for missing values
+st.subheader("Missing Values")
+st.write(df.isna().sum())
+
+# Display histograms for all numeric columns
+st.subheader("Histograms")
+for column in df.select_dtypes(include=np.number).columns:
+    st.write(f"Histogram for {column}")
+    fig, ax = plt.subplots()
+    ax.hist(df[column].dropna(), bins=20)
+    st.pyplot(fig)
+
+# Define the Bayesian Network structure
+st.subheader("Bayesian Network Structure")
+model = BayesianModel([
+    ('Fever', 'tired'),
+    ('cough', 'sorethroat'),
+    ('pain', 'runnynose'),
+    ('diarrhoea', 'target'),
+    ('diffbreath', 'Fever'),
+    ('nose', 'target'),
+    ('target', 'cough'),
+    ('sorethroat', 'pain'),
+    ('Fever', 'target')
+])
+model.fit(df, estimator=MaximumLikelihoodEstimator)
+
+# Display CPD values
+st.subheader("Conditional Probability Distributions (CPDs)")
+for node in model.nodes():
+    st.write(f"CPD of {node}")
+    st.text(model.get_cpds(node))
+
+# Perform Variable Elimination for inference
+st.subheader("Inference using Variable Elimination")
+infer = VariableElimination(model)
+
+symptoms = ['Fever', 'cough', 'runnynose']
+evidence = {}
+for symptom in symptoms:
+    value = st.selectbox(f"Do you have {symptom}?", ('Yes', 'No', 'Not Sure'), key=symptom)
+    if value == 'Yes':
+        evidence[symptom] = 1
+    elif value == 'No':
+        evidence[symptom] = 0
+
+if evidence:
+    target_result = infer.query(variables=["target"], evidence=evidence)
+    st.write("Probability of having COVID-19 given the symptoms:")
+    st.write(target_result)
+else:
+    st.write("Please provide evidence for symptoms to get a prediction.")
