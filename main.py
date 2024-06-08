@@ -1,59 +1,125 @@
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.model_selection import train_test_split
-from sklearn.naive_bayes import CategoricalNB
-from sklearn.preprocessing import LabelEncoder
-from sklearn.metrics import accuracy_score
+from sklearn.preprocessing import StandardScaler
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.metrics import confusion_matrix, accuracy_score
+from sklearn.tree import export_graphviz
+import graphviz
 import streamlit as st
+import missingno as mn
+import io
 
-# Function to load data
-@st.cache
-def load_data():
-    data = pd.read_csv('main.csv')
-    return data
+# Set the page configuration
+st.set_page_config(page_title="Credit Card Fraud Detection", layout="wide")
 
-# Function to preprocess data
-def preprocess_data(data):
-    le = LabelEncoder()
-    for column in data.columns:
-        data[column] = le.fit_transform(data[column])
-    return data
+# Sidebar for file upload and model selection
+st.sidebar.title("Upload and Configure")
+uploaded_file = st.sidebar.file_uploader("Choose a CSV file", type="csv")
 
-# Function to train the model
-def train_model(data):
-    X = data.drop('PlayTennis', axis=1)
-    y = data['PlayTennis']
-    
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
-    
-    model = CategoricalNB()
-    model.fit(X_train, y_train)
-    
-    y_pred = model.predict(X_test)
-    accuracy = accuracy_score(y_test, y_pred)
-    
-    return model, accuracy, X_test, y_test, y_pred
+# Header for the main page
+st.title("Credit Card Fraud Detection")
 
-# Load and preprocess data
-data = load_data()
-preprocessed_data = preprocess_data(data)
+if uploaded_file is not None:
+    # Read the dataset
+    df = pd.read_csv(uploaded_file)
 
-# Train model and get accuracy
-model, accuracy, X_test, y_test, y_pred = train_model(preprocessed_data)
+    # Show the first five rows of the dataset
+    st.header("Dataset Preview")
+    st.write(df.head())
 
-# Streamlit app
-st.title('Naïve Bayesian Classifier')
+    # Display dataset information
+    st.header("Dataset Information")
+    buffer = io.StringIO()
+    df.info(buf=buffer)
+    s = buffer.getvalue()
+    st.text(s)
 
-st.write('### Training Data')
-st.write(data)
+    # Find and display missing values
+    st.header("Missing Values")
+    st.write(df.isna().sum())
 
-st.write('### Preprocessed Data')
-st.write(preprocessed_data)
+    # Visualize missing values
+    st.subheader("Missing Values Visualization")
+    fig, ax = plt.subplots()
+    mn.bar(df, ax=ax)
+    st.pyplot(fig)
 
-st.write('### Model Accuracy')
-st.write(f'Accuracy: {accuracy * 100:.2f}%')
+    X = df.drop('fraud', axis=1)
+    Y = df['fraud']
 
-st.write('### Test Set Predictions')
-test_results = X_test.copy()
-test_results['Actual'] = y_test
-test_results['Predicted'] = y_pred
-st.write(test_results)
+    st.header("Feature Analysis")
+    st.subheader("Boxplot of Features")
+    fig, axes = plt.subplots(5, 5, figsize=(20, 20))
+    for i, col in enumerate(X.columns):
+        if i < 25:  # Adjust according to the number of features
+            sns.boxplot(X[col], ax=axes[i//5, i%5])
+            axes[i//5, i%5].set_xlabel(col, fontsize=20)
+    plt.tight_layout()
+    st.pyplot(fig)
+
+    # Split X and Y
+    X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=0)
+
+    # Standardize the data
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train)
+    X_test = scaler.transform(X_test)
+
+    # Decision Tree classifier
+    clf = DecisionTreeClassifier(criterion="entropy", random_state=0)
+    clf.fit(X_train, Y_train)
+
+    # Predict the values of testing
+    Y_pred_dt = clf.predict(X_test)
+
+    # Calculate and display the confusion matrix
+    st.header("Model Performance")
+    st.subheader("Decision Tree")
+    st.write("Confusion Matrix:")
+    cm_dt = confusion_matrix(Y_test, Y_pred_dt)
+    st.write(cm_dt)
+
+    # Calculate and display the accuracy score
+    accuracy_dt = accuracy_score(Y_test, Y_pred_dt)
+    st.write("Accuracy:", accuracy_dt)
+
+    # Visualize the decision tree
+    st.write("Decision Tree Visualization:")
+    dot_data = export_graphviz(clf, feature_names=X.columns, filled=True)
+    st.graphviz_chart(dot_data)
+
+    # Naive Bayes Algorithm
+    clf1 = GaussianNB()
+
+    # Train the model
+    clf1.fit(X_train, Y_train)
+
+    # Predict the values of testing
+    Y_pred_nb = clf1.predict(X_test)
+
+    # Calculate and display the confusion matrix
+    st.subheader("Naive Bayes")
+    st.write("Confusion Matrix:")
+    cm_nb = confusion_matrix(Y_test, Y_pred_nb)
+    st.write(cm_nb)
+
+    # Calculate and display the accuracy score
+    accuracy_nb = accuracy_score(Y_test, Y_pred_nb)
+    st.write("Accuracy:", accuracy_nb)
+
+    # Comparing the accuracy scores
+    accuracies = [accuracy_dt * 100, accuracy_nb * 100]
+    labels = ['Decision Tree', 'Naive Bayes']
+
+    # Display the accuracy comparison bar chart
+    st.subheader("Accuracy Comparison")
+    fig, ax = plt.subplots()
+    ax.bar(labels, accuracies, color=['blue', 'green'])
+    ax.set_ylabel('Accuracy (%)')
+    ax.set_title('Comparison of Model Accuracies')
+    st.pyplot(fig)
+else:
+    st.info("Please upload a CSV file to proceed.")
