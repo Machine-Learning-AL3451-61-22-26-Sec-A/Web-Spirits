@@ -36,6 +36,7 @@ gmm_silhouette = silhouette_score(X, gmm_labels)
 kmeans_silhouette = silhouette_score(X, kmeans_labels)
 
 # Streamlit app
+st.write("22AIA-WEBSPIRITS")
 st.title('Clustering with EM Algorithm and k-Means')
 
 st.write('## Dataset')
