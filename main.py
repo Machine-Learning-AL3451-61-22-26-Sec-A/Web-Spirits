@@ -32,7 +32,12 @@ import missingno as mn
 import io
 
 # Set the page configuration
-st.set_page_config(page_title="Credit Card Fraud Detection", layout="wide")
+with st.sidebar:
+    st.markdown("**This is bold text in the sidebar**")
+
+# The main page content
+st.write("22AIA-WEBSPIRITS.")
+
 
 # Sidebar for file upload and model selection
 st.sidebar.title("Upload and Configure")
