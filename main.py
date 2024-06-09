@@ -44,7 +44,7 @@ st.sidebar.title("Upload and Configure")
 uploaded_file = st.sidebar.file_uploader("Choose a CSV file", type="csv")
 
 # Header for the main page
-st.title("Credit Card Fraud Detection")
+st.title("Naive Bayesian Classifier ")
 
 if uploaded_file is not None:
     # Read the dataset
