@@ -7,6 +7,7 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 import plotly.express as px
 
+st.write("22AIA-WEBSPIRITS")
 # Load the dataset
 @st.cache
 def load_data():
