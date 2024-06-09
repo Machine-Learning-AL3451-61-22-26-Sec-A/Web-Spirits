@@ -34,7 +34,7 @@ y_pred = knn.predict(X_test)
 accuracy = accuracy_score(y_test, y_pred)
 
 # Print classification report
-st.write("@@AIA-WEBSPIRITS")
+st.write("22AIA-WEBSPIRITS")
 st.write('## Classification Report')
 st.write(classification_report(y_test, y_pred, target_names=load_iris().target_names))
 
